@@ -56,6 +56,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   const sweptCellsRef = useRef<Set<string>>(new Set());
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hasTriggeredLongPressRef = useRef<boolean>(false);
+  const longPressCellRef = useRef<{ r: number; c: number } | null>(null);
   const currentBoardRef = useRef<CellState[][]>(board);
   currentBoardRef.current = board;
 
@@ -115,14 +116,32 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         dragModeRef.current = null;
         sweptCellsRef.current.clear();
         hasTriggeredLongPressRef.current = false;
+        longPressCellRef.current = { r, c };
 
-        // Start long-press timer to place cat if held without dragging
-        if (currentBoardRef.current[r][c] === 0 || (currentBoardRef.current[r][c] === 1 && !invalidCrosses.has(key))) {
+        // Start long-press timer to place/remove cat if held without dragging
+        const curVal = currentBoardRef.current[r][c];
+        if (curVal === 0 || curVal === 1 || curVal === 2) {
           if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
           longPressTimerRef.current = setTimeout(() => {
-            if (!isDraggingRef.current) {
+            if (!isDraggingRef.current && longPressCellRef.current) {
               hasTriggeredLongPressRef.current = true;
-              attemptPlaceCat(r, c);
+              const { r: lpR, c: lpC } = longPressCellRef.current;
+              const lpKey = `${lpR},${lpC}`;
+              if (!invalidCrosses.has(lpKey)) {
+                if (curVal === 2) {
+                  // Hold on cat: remove it (like double-tap)
+                  playUncross();
+                  triggerHaptic('light');
+                  const newBoard = currentBoardRef.current.map(row => [...row]);
+                  newBoard[lpR][lpC] = 0;
+                  currentBoardRef.current = newBoard;
+                  onBoardChange(newBoard);
+                  onCellAction?.('uncross', lpR, lpC);
+                } else {
+                  // Hold on empty or cross: attempt place cat
+                  attemptPlaceCat(lpR, lpC);
+                }
+              }
             }
           }, 330);
         }
@@ -141,6 +160,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     if (longPressTimerRef.current && dist > 8) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
+      longPressCellRef.current = null;
     }
 
     const el = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('[data-cell]');
@@ -185,6 +205,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
+      longPressCellRef.current = null;
     }
 
     if (isDraggingRef.current) {
@@ -220,12 +241,52 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         isDraggingRef.current = false;
         dragModeRef.current = null;
         sweptCellsRef.current.clear();
+        hasTriggeredLongPressRef.current = false;
+        longPressCellRef.current = { r, c };
+
+        // Start long-press timer to place/remove cat if held without dragging
+        const curVal = currentBoardRef.current[r][c];
+        if (curVal === 0 || curVal === 1 || curVal === 2) {
+          if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = setTimeout(() => {
+            if (!isDraggingRef.current && longPressCellRef.current) {
+              hasTriggeredLongPressRef.current = true;
+              const { r: lpR, c: lpC } = longPressCellRef.current;
+              const lpKey = `${lpR},${lpC}`;
+              if (!invalidCrosses.has(lpKey)) {
+                if (curVal === 2) {
+                  // Hold on cat: remove it (like double-tap)
+                  playUncross();
+                  triggerHaptic('light');
+                  const newBoard = currentBoardRef.current.map(row => [...row]);
+                  newBoard[lpR][lpC] = 0;
+                  currentBoardRef.current = newBoard;
+                  onBoardChange(newBoard);
+                  onCellAction?.('uncross', lpR, lpC);
+                } else {
+                  // Hold on empty or cross: attempt place cat
+                  attemptPlaceCat(lpR, lpC);
+                }
+              }
+            }
+          }, 330);
+        }
       }
     }
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (e.pointerType === 'touch' || isWon || !dragStartCoordRef.current || e.buttons !== 1) return;
+
+    // Cancel long-press if moved too far
+    if (longPressTimerRef.current && dragStartCoordRef.current) {
+      const dist = Math.hypot(e.clientX - dragStartCoordRef.current.x, e.clientY - dragStartCoordRef.current.y);
+      if (dist > 8) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+        longPressCellRef.current = null;
+      }
+    }
 
     const start = dragStartCoordRef.current;
     const dist = Math.hypot(e.clientX - start.x, e.clientY - start.y);
@@ -253,6 +314,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         delete uncrossTimeoutRef.current[startKey];
       }
 
+      // Clear long-press when drag starts
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+        longPressCellRef.current = null;
+      }
+
       applyCellSweep(start.r, start.c, mode);
     }
 
@@ -270,6 +338,36 @@ export const GameBoard: React.FC<GameBoardProps> = ({
 
   const handlePointerUp = (e: React.PointerEvent) => {
     if (e.pointerType === 'touch') return;
+    
+    // Clear long-press timer
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+      longPressCellRef.current = null;
+    }
+
+    if (isDraggingRef.current) {
+      justFinishedDragRef.current = true;
+      setTimeout(() => {
+        justFinishedDragRef.current = false;
+      }, 120);
+    }
+    isDraggingRef.current = false;
+    dragModeRef.current = null;
+    dragStartCoordRef.current = null;
+    sweptCellsRef.current.clear();
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent) => {
+    if (e.pointerType === 'touch') return;
+    
+    // Clear long-press timer
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+      longPressCellRef.current = null;
+    }
+
     if (isDraggingRef.current) {
       justFinishedDragRef.current = true;
       setTimeout(() => {
@@ -488,7 +586,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
         >
           {board.map((row, r) =>
             row.map((cellState, c) => {
