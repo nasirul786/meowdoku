@@ -39,8 +39,11 @@ import { DailyStreakModal } from '../components/DailyStreakModal';
 import { DailyChallengeVictoryModal } from '../components/DailyChallengeVictoryModal';
 import { ProfileModal } from '../components/ProfileModal';
 import { ShopModal, PurchaseResult } from '../components/ShopModal';
+import { GameSelectionScreen } from '../components/GameSelectionScreen';
+import { PawBalanceGameScreen } from '../components/pawbalance/PawBalanceGameScreen';
+import { HexagonGameApp } from '../components/hexagon-sort/HexagonGameApp';
 
-type ScreenType = 'loading' | 'home' | 'game' | 'not_in_telegram';
+type ScreenType = 'loading' | 'hub' | 'home' | 'game' | 'not_in_telegram' | 'pawbalance_game' | 'hexagon_game';
 
 export default function App() {
   const { t, initLanguageFromTelegram } = useI18n();
@@ -210,7 +213,7 @@ export default function App() {
         playTap();
         triggerHaptic('light');
         setIsDailyChallenge(false);
-        setScreen('home');
+        setScreen('hub');
       };
       tg.BackButton.onClick(handleGameBack);
       return () => {
@@ -344,7 +347,7 @@ export default function App() {
                   console.warn('Preloading error:', err);
                 }
 
-                setScreen('home');
+                setScreen('hub');
                 startBGM();
               } else {
                 setScreen('not_in_telegram');
@@ -397,7 +400,7 @@ export default function App() {
             setCurrentLevelNumber(fallbackLvl);
             preloadLevels(fallbackLvl, 5).catch(console.warn);
             preloadAllGameAssets().catch(console.warn);
-            setScreen('home');
+            setScreen('hub');
             return;
           }
           setScreen('not_in_telegram');
@@ -958,22 +961,74 @@ export default function App() {
       style={{ paddingTop: `${safeTop}px`, paddingBottom: `${safeBottom}px` }}
       className="min-h-screen w-full bg-[#FAF7F2] flex flex-col justify-between overflow-x-hidden box-border"
     >
+      {/* Hub Screen: Game Selection */}
+      {screen === 'hub' && user && (
+        <GameSelectionScreen
+          user={user}
+          onSelectMeowdoku={() => setScreen('home')}
+          onSelectPawBalance={() => setScreen('pawbalance_game')}
+          onSelectHexagonSort={() => setScreen('hexagon_game')}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenProfile={() => setIsProfileOpen(true)}
+        />
+      )}
+
       {/* Home Screen View matching Image 2 */}
       {screen === 'home' && user && (
-        <HomeScreen
-          user={user}
-          onPlay={() => startLevel(user.current_level || 1)}
-          onOpenStreak={() => setIsStreakOpen(true)}
-          onOpenDailyChallenge={startDailyChallenge}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-          onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
-          onOpenProfile={() => setIsProfileOpen(true)}
-          onOpenShop={() => {
-            setShopInitialTab('hints');
-            setIsShopOpen(true);
-          }}
-          dailyChallengeCompleted={dailyChallengeCompleted}
-        />
+        <div className="w-full flex-1 flex flex-col relative overflow-hidden">
+          {/* Back button to Hub */}
+          <button
+            onClick={() => {
+              playTap();
+              triggerHaptic('light');
+              setScreen('hub');
+            }}
+            className="absolute top-2 left-4 z-[60] bg-white p-2 rounded-full shadow-md border border-[#EBE3D7] active:scale-95 transition-transform flex items-center justify-center w-10 h-10"
+          >
+            <svg className="w-6 h-6 text-[#8C7A6B]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+
+          <HomeScreen
+            user={user}
+            onPlay={() => startLevel(user.current_level || 1)}
+            onOpenStreak={() => setIsStreakOpen(true)}
+            onOpenDailyChallenge={startDailyChallenge}
+            onOpenSettings={() => setIsSettingsOpen(true)}
+            onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
+            onOpenProfile={() => setIsProfileOpen(true)}
+            onOpenShop={() => {
+              setShopInitialTab('hints');
+              setIsShopOpen(true);
+            }}
+            dailyChallengeCompleted={dailyChallengeCompleted}
+          />
+        </div>
+      )}
+
+      {/* PawBalance Game Screen */}
+      {screen === 'pawbalance_game' && (
+        <PawBalanceGameScreen onBack={() => {
+          playTap();
+          triggerHaptic('light');
+          setScreen('hub');
+        }} />
+      )}
+
+      {/* Hexagon Block Sort Game Screen */}
+      {screen === 'hexagon_game' && user && (
+        <div className="w-full h-full absolute inset-0 z-50 bg-[#1A1A2E]">
+          <HexagonGameApp
+            user={user}
+            initData={initData}
+            onBack={() => {
+              playTap();
+              triggerHaptic('light');
+              setScreen('hub');
+            }}
+          />
+        </div>
       )}
 
       {/* Active Game Screen View matching Image 2 */}
@@ -1081,7 +1136,7 @@ export default function App() {
         onReplay={handleRestartLevel}
         onHome={() => {
           setIsVictoryOpen(false);
-          setScreen('home');
+          setScreen('hub');
         }}
       />
 
@@ -1126,7 +1181,7 @@ export default function App() {
         onHome={() => {
           setIsDailyVictoryOpen(false);
           setIsDailyChallenge(false);
-          setScreen('home');
+          setScreen('hub');
         }}
       />
     </main>

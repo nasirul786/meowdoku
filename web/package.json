@@ -10,6 +10,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "firebase": "^10.13.1",
+    "firebase-admin": "^12.5.0",
     "framer-motion": "^13.2.0",
     "lottie-web": "^5.13.0",
     "lucide-react": "^1.43.0",

@@ -5,6 +5,7 @@ import catFaceData from '../../public/lottie/cat-face.json';
 
 interface CatLottieProps {
   className?: string;
+  animationSpeed?: number;
 }
 
 let lottieModulePromise: Promise<any> | null = null;
@@ -21,7 +22,7 @@ if (typeof window !== 'undefined') {
   getLottieModule();
 }
 
-export const CatLottie: React.FC<CatLottieProps> = React.memo(({ className = 'w-full h-full' }) => {
+export const CatLottie: React.FC<CatLottieProps> = React.memo(({ className = 'w-full h-full', animationSpeed = 1 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,6 +45,7 @@ export const CatLottie: React.FC<CatLottieProps> = React.memo(({ className = 'w-
           preserveAspectRatio: 'xMidYMid meet',
         },
       });
+      anim.setSpeed(animationSpeed);
     });
 
     return () => {
